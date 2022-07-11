@@ -1,0 +1,694 @@
+{
+ "Resources": {
+  "serviceloggroup5BDE9A9F": {
+   "Type": "AWS::Logs::LogGroup",
+   "Properties": {
+    "LogGroupName": "service",
+    "RetentionInDays": 731
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "Service01/service-log-group/Resource"
+   }
+  },
+  "alb01LB3AE158FD": {
+   "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+   "Properties": {
+    "LoadBalancerAttributes": [
+     {
+      "Key": "deletion_protection.enabled",
+      "Value": "false"
+     }
+    ],
+    "Scheme": "internet-facing",
+    "SecurityGroups": [
+     {
+      "Fn::GetAtt": [
+       "alb01LBSecurityGroup6C2421AB",
+       "GroupId"
+      ]
+     }
+    ],
+    "Subnets": [
+     {
+      "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01PublicSubnet1SubnetFD569073CF499BEE"
+     },
+     {
+      "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01PublicSubnet2Subnet25F6684CF641DB8B"
+     }
+    ],
+    "Type": "application"
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/LB/Resource"
+   }
+  },
+  "alb01LBSecurityGroup6C2421AB": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Automatically created Security Group for ELB Service01alb01LB7BF4E9E4",
+    "SecurityGroupIngress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow from anyone on port 8080",
+      "FromPort": 8080,
+      "IpProtocol": "tcp",
+      "ToPort": 8080
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01E6A6F7D5A93D01F4"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/LB/SecurityGroup/Resource"
+   }
+  },
+  "alb01LBSecurityGrouptoService01alb01ServiceSecurityGroupC904AC93808099ABACE0": {
+   "Type": "AWS::EC2::SecurityGroupEgress",
+   "Properties": {
+    "GroupId": {
+     "Fn::GetAtt": [
+      "alb01LBSecurityGroup6C2421AB",
+      "GroupId"
+     ]
+    },
+    "IpProtocol": "tcp",
+    "Description": "Load balancer to target",
+    "DestinationSecurityGroupId": {
+     "Fn::GetAtt": [
+      "alb01ServiceSecurityGroup60D8DCBD",
+      "GroupId"
+     ]
+    },
+    "FromPort": 8080,
+    "ToPort": 8080
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/LB/SecurityGroup/to Service01alb01ServiceSecurityGroupC904AC93:8080"
+   }
+  },
+  "alb01LBPublicListenerAF1C4681": {
+   "Type": "AWS::ElasticLoadBalancingV2::Listener",
+   "Properties": {
+    "DefaultActions": [
+     {
+      "TargetGroupArn": {
+       "Ref": "alb01LBPublicListenerECSGroup5E5A1E6C"
+      },
+      "Type": "forward"
+     }
+    ],
+    "LoadBalancerArn": {
+     "Ref": "alb01LB3AE158FD"
+    },
+    "Port": 8080,
+    "Protocol": "HTTP"
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/LB/PublicListener/Resource"
+   }
+  },
+  "alb01LBPublicListenerECSGroup5E5A1E6C": {
+   "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+   "Properties": {
+    "HealthCheckPath": "/actuator/health",
+    "HealthCheckPort": "8080",
+    "Matcher": {
+     "HttpCode": "200"
+    },
+    "Port": 80,
+    "Protocol": "HTTP",
+    "TargetGroupAttributes": [
+     {
+      "Key": "stickiness.enabled",
+      "Value": "false"
+     }
+    ],
+    "TargetType": "ip",
+    "VpcId": {
+     "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01E6A6F7D5A93D01F4"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/LB/PublicListener/ECSGroup/Resource"
+   }
+  },
+  "alb01TaskDefTaskRoleFBECA4A8": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/TaskDef/TaskRole/Resource"
+   }
+  },
+  "alb01TaskDef2DAAC0E6": {
+   "Type": "AWS::ECS::TaskDefinition",
+   "Properties": {
+    "ContainerDefinitions": [
+     {
+      "Essential": true,
+      "Image": "gideonmarquesdasilva/curso-microservices-with-aws:1.0.0",
+      "LogConfiguration": {
+       "LogDriver": "awslogs",
+       "Options": {
+        "awslogs-group": {
+         "Ref": "serviceloggroup5BDE9A9F"
+        },
+        "awslogs-stream-prefix": "service",
+        "awslogs-region": {
+         "Ref": "AWS::Region"
+        }
+       }
+      },
+      "Name": "spring-with-aws",
+      "PortMappings": [
+       {
+        "ContainerPort": 8080,
+        "Protocol": "tcp"
+       }
+      ]
+     }
+    ],
+    "Cpu": "512",
+    "ExecutionRoleArn": {
+     "Fn::GetAtt": [
+      "alb01TaskDefExecutionRole42425035",
+      "Arn"
+     ]
+    },
+    "Family": "Service01alb01TaskDef00F67D8E",
+    "Memory": "1024",
+    "NetworkMode": "awsvpc",
+    "RequiresCompatibilities": [
+     "FARGATE"
+    ],
+    "TaskRoleArn": {
+     "Fn::GetAtt": [
+      "alb01TaskDefTaskRoleFBECA4A8",
+      "Arn"
+     ]
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/TaskDef/Resource"
+   }
+  },
+  "alb01TaskDefExecutionRole42425035": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/TaskDef/ExecutionRole/Resource"
+   }
+  },
+  "alb01TaskDefExecutionRoleDefaultPolicy05D5812B": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+       ],
+       "Effect": "Allow",
+       "Resource": {
+        "Fn::GetAtt": [
+         "serviceloggroup5BDE9A9F",
+         "Arn"
+        ]
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "alb01TaskDefExecutionRoleDefaultPolicy05D5812B",
+    "Roles": [
+     {
+      "Ref": "alb01TaskDefExecutionRole42425035"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/TaskDef/ExecutionRole/DefaultPolicy/Resource"
+   }
+  },
+  "alb01Service082A3857": {
+   "Type": "AWS::ECS::Service",
+   "Properties": {
+    "Cluster": {
+     "Fn::ImportValue": "Cluster:ExportsOutputRefClusterEB0386A796A0E3FE"
+    },
+    "DeploymentConfiguration": {
+     "MaximumPercent": 200,
+     "MinimumHealthyPercent": 50
+    },
+    "DesiredCount": 2,
+    "EnableECSManagedTags": false,
+    "HealthCheckGracePeriodSeconds": 60,
+    "LaunchType": "FARGATE",
+    "LoadBalancers": [
+     {
+      "ContainerName": "spring-with-aws",
+      "ContainerPort": 8080,
+      "TargetGroupArn": {
+       "Ref": "alb01LBPublicListenerECSGroup5E5A1E6C"
+      }
+     }
+    ],
+    "NetworkConfiguration": {
+     "AwsvpcConfiguration": {
+      "AssignPublicIp": "ENABLED",
+      "SecurityGroups": [
+       {
+        "Fn::GetAtt": [
+         "alb01ServiceSecurityGroup60D8DCBD",
+         "GroupId"
+        ]
+       }
+      ],
+      "Subnets": [
+       {
+        "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01PublicSubnet1SubnetFD569073CF499BEE"
+       },
+       {
+        "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01PublicSubnet2Subnet25F6684CF641DB8B"
+       }
+      ]
+     }
+    },
+    "ServiceName": "service-01",
+    "TaskDefinition": {
+     "Ref": "alb01TaskDef2DAAC0E6"
+    }
+   },
+   "DependsOn": [
+    "alb01LBPublicListenerECSGroup5E5A1E6C",
+    "alb01LBPublicListenerAF1C4681"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/Service/Service"
+   }
+  },
+  "alb01ServiceSecurityGroup60D8DCBD": {
+   "Type": "AWS::EC2::SecurityGroup",
+   "Properties": {
+    "GroupDescription": "Service01/alb-01/Service/SecurityGroup",
+    "SecurityGroupEgress": [
+     {
+      "CidrIp": "0.0.0.0/0",
+      "Description": "Allow all outbound traffic by default",
+      "IpProtocol": "-1"
+     }
+    ],
+    "VpcId": {
+     "Fn::ImportValue": "Vpc:ExportsOutputRefVPC01E6A6F7D5A93D01F4"
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/Service/SecurityGroup/Resource"
+   }
+  },
+  "alb01ServiceSecurityGroupfromService01alb01LBSecurityGroup4AE6299880808F669A7C": {
+   "Type": "AWS::EC2::SecurityGroupIngress",
+   "Properties": {
+    "IpProtocol": "tcp",
+    "Description": "Load balancer to target",
+    "FromPort": 8080,
+    "GroupId": {
+     "Fn::GetAtt": [
+      "alb01ServiceSecurityGroup60D8DCBD",
+      "GroupId"
+     ]
+    },
+    "SourceSecurityGroupId": {
+     "Fn::GetAtt": [
+      "alb01LBSecurityGroup6C2421AB",
+      "GroupId"
+     ]
+    },
+    "ToPort": 8080
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/Service/SecurityGroup/from Service01alb01LBSecurityGroup4AE62998:8080"
+   }
+  },
+  "alb01ServiceTaskCountTarget9BFF6B88": {
+   "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+   "Properties": {
+    "MaxCapacity": 4,
+    "MinCapacity": 2,
+    "ResourceId": {
+     "Fn::Join": [
+      "",
+      [
+       "service/",
+       {
+        "Fn::ImportValue": "Cluster:ExportsOutputRefClusterEB0386A796A0E3FE"
+       },
+       "/",
+       {
+        "Fn::GetAtt": [
+         "alb01Service082A3857",
+         "Name"
+        ]
+       }
+      ]
+     ]
+    },
+    "RoleARN": {
+     "Fn::Join": [
+      "",
+      [
+       "arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":iam::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+      ]
+     ]
+    },
+    "ScalableDimension": "ecs:service:DesiredCount",
+    "ServiceNamespace": "ecs"
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/Service/TaskCount/Target/Resource"
+   }
+  },
+  "alb01ServiceTaskCountTargetserviceautoscaling0D244500": {
+   "Type": "AWS::ApplicationAutoScaling::ScalingPolicy",
+   "Properties": {
+    "PolicyName": "Service01alb01ServiceTaskCountTargetserviceautoscaling34E7B7BA",
+    "PolicyType": "TargetTrackingScaling",
+    "ScalingTargetId": {
+     "Ref": "alb01ServiceTaskCountTarget9BFF6B88"
+    },
+    "TargetTrackingScalingPolicyConfiguration": {
+     "PredefinedMetricSpecification": {
+      "PredefinedMetricType": "ECSServiceAverageCPUUtilization"
+     },
+     "ScaleInCooldown": 60,
+     "ScaleOutCooldown": 60,
+     "TargetValue": 50
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/alb-01/Service/TaskCount/Target/service-auto-scaling/Resource"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/31STU/DMAz9LdyzwMaFK4wPgZBA6+6Tl3qVWZZUiTs0Vf3vuMk+OkA72X559vOzMtG3Yz2+gu84MuV6ZGmp24LBrJVAi9b6Kur23VcvwTe1mq7cIe8UmriogRmDi/q+ri0ZYPLCgPIBLDiD5TOEChgLDFsyqNBCZDJWGMvEIFdtJ7r9vztkvUE95FFkdHvOIR+8z0UZ+bj2oOw3F80CTROId0fKZeCpChjjH/jVJTxdQ7d7u3OI60dckaN+kyx/jnjHQLLxAPt1qiSU08KI/6VNY6e+cdwpgo1uZ94mXoqfXpzv+jJnnYLTMaBhH2WKnFuMH8f1J0lC50gO8yC/QBqK3HeafwZ0XQ99NFw3rGYYfRPy8sNc7JbJZKfeYAvX4zt9o/tv9xWJRkEc0Qb1LMcfBLRagJICAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "Service01/CDKMetadata/Default"
+   },
+   "Condition": "CDKMetadataAvailable"
+  }
+ },
+ "Outputs": {
+  "alb01LoadBalancerDNSEE5AAF3A": {
+   "Value": {
+    "Fn::GetAtt": [
+     "alb01LB3AE158FD",
+     "DNSName"
+    ]
+   }
+  },
+  "alb01ServiceURL98BE7A38": {
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "http://",
+      {
+       "Fn::GetAtt": [
+        "alb01LB3AE158FD",
+        "DNSName"
+       ]
+      }
+     ]
+    ]
+   }
+  }
+ },
+ "Conditions": {
+  "CDKMetadataAvailable": {
+   "Fn::Or": [
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "af-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-northwest-1"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "sa-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-2"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-2"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
